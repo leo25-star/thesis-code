@@ -1,3 +1,5 @@
 numpy
 scipy
 matplotlib
+os
+sys

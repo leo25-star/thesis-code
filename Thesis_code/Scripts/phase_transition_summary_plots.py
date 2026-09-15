@@ -41,7 +41,7 @@ The four models and their boundaries
         again occurs at
                 u = 1        (k_T = k_R).
 
-Output: ``phase_transition_summary.png`` (written next to this script).
+Output: ``phase_transition_summary.png`` (written to ../PNGs/).
 """
 
 import os
@@ -178,7 +178,11 @@ def make_figure(outdir):
 
 
 def main():
-    outdir = os.path.dirname(os.path.abspath(__file__))
+    # Figures are written to Thesis_code/PNGs (one level up from Scripts/)
+    outdir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "PNGs"
+    )
+    os.makedirs(outdir, exist_ok=True)
     make_figure(outdir)
     plt.show()
 

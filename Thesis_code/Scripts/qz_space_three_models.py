@@ -296,7 +296,11 @@ def run_model_qz(name, cfg, outdir):
 
 
 def main():
-    outdir = os.path.dirname(os.path.abspath(__file__))
+    # Figures are written to Thesis_code/PNGs (one level up from Scripts/)
+    outdir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "PNGs"
+    )
+    os.makedirs(outdir, exist_ok=True)
     wanted = [a for a in sys.argv[1:] if a in pt3.MODELS]
     names = wanted if wanted else list(pt3.MODELS)
     for name in names:

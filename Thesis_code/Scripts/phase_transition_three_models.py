@@ -779,7 +779,11 @@ def run_model(name, cfg, outdir, probe=False):
 
 
 def main():
-    outdir = os.path.dirname(os.path.abspath(__file__))
+    # Figures are written to Thesis_code/PNGs (one level up from Scripts/)
+    outdir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "PNGs"
+    )
+    os.makedirs(outdir, exist_ok=True)
     probe = len(sys.argv) > 1 and sys.argv[1] == "probe"
     for name, cfg in MODELS.items():
         run_model(name, cfg, outdir, probe=probe)

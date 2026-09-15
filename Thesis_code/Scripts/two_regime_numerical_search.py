@@ -305,7 +305,11 @@ def make_figure(records, outdir):
 
 
 def main():
-    outdir = os.path.dirname(os.path.abspath(__file__))
+    # Figures are written to Thesis_code/PNGs (one level up from Scripts/)
+    outdir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "PNGs"
+    )
+    os.makedirs(outdir, exist_ok=True)
     records = run_sweep()
     make_figure(records, outdir)
     plt.show()

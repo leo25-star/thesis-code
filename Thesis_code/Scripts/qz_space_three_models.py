@@ -206,7 +206,7 @@ def fig_qz_space(model, cfg, P, star, records, outdir):
     rows = [before, after]
     row_label = ["before transition\n(BG optimal, $M>0$)",
                  "after transition\n(BG not optimal, $M<0$)"]
-    sweep_sym = r"k_T/k_R" if key == "u" else r"K_m"
+    sweep_sym = r"u" if key == "u" else r"K_m"
     norm = Normalize(0.0, 1.0)
 
     for i in range(2):
@@ -250,13 +250,14 @@ def fig_qz_space(model, cfg, P, star, records, outdir):
     fig.legend(handles=handles, loc="lower center", ncol=5, fontsize=8.5,
                bbox_to_anchor=(0.5, -0.04))
 
-    kA_kC = 1.0 / P[pt3.IV]
     if key == "u":
-        trans = rf"transition at $k_T/k_R=1/\chi={star:.3g}$"
-        fixed = rf"$k_A/k_C={kA_kC:g}$, $\chi={P[pt3.ICHI]:g}$, $K_m={P[pt3.IKM]:g}$"
+        trans = rf"transition at $u=1/\chi={star:.3g}$"
+        fixed = rf"$v={P[pt3.IV]:g}$, $\chi={P[pt3.ICHI]:g}$"
+        if model != "conc":   # phi of the concentration-limited model has no K_m
+            fixed += rf", $K_m={P[pt3.IKM]:g}$"
     else:
         trans = rf"transition at $K_m={star:.3g}$"
-        fixed = rf"$k_A/k_C={kA_kC:g}$, $\chi={P[pt3.ICHI]:g}$, $k_T/k_R={P[pt3.IU]:g}$"
+        fixed = rf"$v={P[pt3.IV]:g}$, $\chi={P[pt3.ICHI]:g}$, $u={P[pt3.IU]:g}$"
     fig.suptitle(f"{cfg['title']}:  optimal dynamics in the $(q,z)$ plane\n"
                  f"({trans};  {fixed})", fontsize=12)
 

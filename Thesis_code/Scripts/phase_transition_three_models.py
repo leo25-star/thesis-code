@@ -12,19 +12,18 @@ q = T/R, z = A/R, u = k_T/k_R, v = k_C/k_A, control f = f_R:
     z' = q - phi(q,z) ( u/v + f z )
     (R'/R) = f phi(q,z)                    (=> doubling rate lambda = f phi)
 
-The three models differ only in the saturation factor phi (chi couples the
-transporter contribution to the effective volume):
+The three models differ only in the saturation factor phi (Sec. 3.4):
 
   * MM      Michaelis-Menten          phi = z / ( z + kappa (1 + chi u q) )
-                transition at  chi u = 1                        (Sec. 3.3)
+                transition at  chi u = 1                       
   * modMM   modified MM coefficient    phi = z / ( z + delta + kappa (1 + chi u q) )
-                transition at  K_m = 1 / (chi u - 1)            (Sec. 3.5.1)
+                transition at  K_m = 1 / (chi u - 1)           
   * conc    concentration limited      phi = z / ( 1 + chi u q )
-                transition at  chi u = 1                        (Sec. 3.5.2)
+                transition at  chi u = 1                        
 
 BG optimality is governed by the reduced second variation
 delta^2 tau[y] = int ( M ydot^2 + N y^2 ) dt.  N > 0 throughout, so BG loses
-optimality exactly where M changes sign -- the phase transition.
+optimality exactly where M changes sign - the phase transition.
 
 For each model the script
   1. fixes  k_A/k_C = 1/v  and  chi  (and, for modMM, k_T/k_R = u), then locates
@@ -33,8 +32,8 @@ For each model the script
         modMM    : sweep K_m           (transition K_m* = 1/(chi u - 1))
   2. picks 3 values before the transition (M>0, BG optimal) and 3 after (M<0);
   3. runs a full piecewise-constant optimal-control search at each value;
-  4. draws a 2x3 grid of the optimal strategy f(theta) -- top row before the
-     transition, bottom row after -- one figure per model.
+  4. draws a 2x3 grid of the optimal strategy f(theta) - top row before the
+     transition, bottom row after - one figure per model.
 
 Run  `python phase_transition_three_models.py probe`  to print only the M-sweep
 tables and located transitions (fast; no optimal-control search).
@@ -62,7 +61,6 @@ def phi_derivs(model, q, z, P):
     """Return (S, Sq, Sz) = (phi, dphi/dq, dphi/dz) for the chosen model.
 
     All three share phi = z / D and differ only in the denominator D.
-    The transporter/ribosome speed ratio enters as  chi*u  multiplying q.
     """
     u, chi, Km, delta = P[IU], P[ICHI], P[IKM], P[IDEL]
     xu = chi * u
@@ -104,7 +102,7 @@ def lam_fun(model, q, z, f, P):
 
 # ============================================================
 # 1. First-order (linearization) coefficients at a BG point
-#    -- exactly the reduced coefficients of Section 3.2.
+#    - exactly the reduced coefficients of Section 3.2.
 # ============================================================
 
 def first_order_coeffs(model, q, z, P):
@@ -656,7 +654,7 @@ def fig_strategies(model, cfg, P, star, records, outdir):
     rows = [before, after]
     row_label = ["before transition\n(BG optimal, $M>0$)",
                  "after transition\n(BG not optimal, $M<0$)"]
-    sweep_sym = r"k_T/k_R" if key == "u" else r"K_m"
+    sweep_sym = r"u" if key == "u" else r"K_m"
 
     for i in range(2):
         for j in range(3):
@@ -685,7 +683,7 @@ def fig_strategies(model, cfg, P, star, records, outdir):
     for ax in axes[-1, :]:
         ax.set_xlabel(r"cycle phase $\theta=t/\tau$", fontsize=12)
     for ax in axes[:, 0]:
-        ax.set_ylabel(r"allocation $f(\theta)$", fontsize=12)
+        ax.set_ylabel(r"allocation $f_R(\theta)$", fontsize=12)
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=2, fontsize=9,
@@ -693,11 +691,13 @@ def fig_strategies(model, cfg, P, star, records, outdir):
 
     kA_kC = 1.0 / P[IV]
     if key == "u":
-        trans = rf"transition at $k_T/k_R=1/\chi={star:.3g}$"
-        fixed = rf"$k_A/k_C={kA_kC:g}$, $\chi={P[ICHI]:g}$, $K_m={P[IKM]:g}$"
+        trans = rf"transition at $u=1/\chi={star:.3g}$"
+        fixed = rf"$v={1/kA_kC:g}$, $\chi={P[ICHI]:g}$"
+        if model != "conc":       # phi of the concentration-limited model has no K_m
+            fixed += rf", $K_m={P[IKM]:g}$"
     else:
         trans = rf"transition at $K_m={star:.3g}$"
-        fixed = rf"$k_A/k_C={kA_kC:g}$, $\chi={P[ICHI]:g}$, $k_T/k_R={P[IU]:g}$"
+        fixed = rf"$v={1/kA_kC:g}$, $\chi={P[ICHI]:g}$, $u={P[IU]:g}$"
     fig.suptitle(f"{cfg['title']}:  optimal strategy across the phase transition\n"
                  f"({trans};  {fixed})", fontsize=15)
 
@@ -717,14 +717,14 @@ V = 2.5
 
 MODELS = {
     "MM": dict(
-        title="Michaelis--Menten model",
+        title="Michaelis-Menten model",
         tag="MM_model",
         sweep="u",                        # transition at u* = 1/chi
         P=(None, V, CHI, 1.0, 0.0),       # u swept; Km=kappa=1
         lo=0.1, hi=6.0,
     ),
     "modMM": dict(
-        title="Modified Michaelis--Menten model",
+        title="Modified Michaelis-Menten model",
         tag="modMM_model",
         sweep="Km",                       # transition K_m = 1/(chi u - 1)
         P=(1.0, V, CHI, None, 1.0),       # u=1 (chi u = 1.5); Km swept; delta=1

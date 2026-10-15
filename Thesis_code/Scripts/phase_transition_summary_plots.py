@@ -35,10 +35,8 @@ The four models and their boundaries
                 u = 1        (k_T = k_R),
         independent of K_m.  BG is optimal for u < 1.
 
-  (d) Large-K_m limit -- the concentration-limited (A/V scaling) model,
-        rho(q,z) = z / (1 + chi q).
-        Obtained as the K_m -> infinity limit of the MM model; the transition
-        again occurs at
+  (d) Concentration-limited (A/V scaling) model,
+        rho(q,z) = z / (1 + chi q).    
                 u = 1        (k_T = k_R).
 
 Output: ``phase_transition_summary.png`` (written to ../PNGs/).
@@ -66,6 +64,14 @@ C_BG = "#9ecae1"        # BG optimal (constant allocation)
 C_DYN = "#fdae6b"       # time-dependent optimal
 PHASE_CMAP = ListedColormap([C_BG, C_DYN])
 
+# Font sizes (kept large so the figure stays readable when shrunk in the thesis).
+FS_TITLE = 17        # panel titles
+FS_LABEL = 17        # axis labels
+FS_TICK = 14         # tick labels
+FS_LEGEND = 15
+FS_SUPTITLE = 20
+FS_ANNOT = 16        # in-panel annotations
+
 
 def _grid(n_u=400, n_km=400):
     """(u, K_m) mesh; K_m logarithmic."""
@@ -81,8 +87,9 @@ def _shade(ax, U, KM, dynamic):
     ax.set_yscale("log")
     ax.set_xlim(U_MIN, U_MAX)
     ax.set_ylim(KM_MIN, KM_MAX)
-    ax.set_xlabel(r"transporter/ribosome rate ratio  $u=k_T/k_R$")
-    ax.set_ylabel(r"saturation constant  $K_m$")
+    ax.set_xlabel(r"$u$", fontsize=FS_LABEL)
+    ax.set_ylabel(r"$K_m$", fontsize=FS_LABEL)
+    ax.tick_params(axis="both", which="major", labelsize=FS_TICK)
 
 
 # ============================================================
@@ -96,12 +103,12 @@ def panel_step(ax):
     _shade(ax, U, KM, dynamic)
     ax.text(0.5, 0.5, "BG optimal\neverywhere\n(no transition)",
             transform=ax.transAxes, ha="center", va="center",
-            fontsize=12, fontweight="bold", color="#08519c")
-    ax.set_title("(a) Two-regime (step-function) model", fontsize=11)
+            fontsize=FS_ANNOT + 2, fontweight="bold", color="#08519c")
+    ax.set_title("(a) Two-regime model", fontsize=FS_TITLE)
 
 
 def panel_mm_R(ax):
-    """(b) MM with R in the denominator: K_m = 1/(chi u - 1)."""
+    """(b) Modified MM: K_m = 1/(chi u - 1)."""
     U, KM = _grid()
     # M_chi > 0  <=>  K_m (chi u - 1) < 1  ->  BG optimal.
     dynamic = KM * (CHI * U - 1.0) > 1.0
@@ -115,35 +122,34 @@ def panel_mm_R(ax):
     # Vertical asymptote u = 1/chi (the K_m -> inf limit of this boundary).
     ax.axvline(1.0 / CHI, color="k", ls=":", lw=1.2)
     ax.text(1.0 / CHI, KM_MAX * 0.55, r"$u=1/\chi$", rotation=90,
-            ha="right", va="top", fontsize=9)
+            ha="right", va="top", fontsize=FS_ANNOT - 2)
 
-    ax.set_title(r"(b) MM with $R$ in denominator:  "
-                 r"$K_m=\dfrac{1}{\chi u-1}$" + f"   ($\\chi={CHI:g}$)",
-                 fontsize=11)
+    ax.set_title(r"(b) Modified MM:  "
+                 r"$K_m=\dfrac{1}{\chi u-1}$" + f"",
+                 fontsize=FS_TITLE)
 
 
 def panel_mm_classic(ax):
-    """(c) MM classic factor (no R in the denominator): u = 1."""
+    """(c) MM model: u = 1."""
     U, KM = _grid()
     dynamic = U > 1.0
     _shade(ax, U, KM, dynamic)
     ax.axvline(1.0, color="k", lw=2.2)
-    ax.set_title(r"(c) MM classic factor (no $R$):  $u=1$", fontsize=11)
+    ax.set_title(r"(c) MM model:  $u=1$", fontsize=FS_TITLE)
 
 
 def panel_large_km(ax):
-    """(d) Large-K_m / concentration (A/V) model: u = 1."""
+    """(d) Concentration-limited (A/V scaling) model: u = 1."""
     U, KM = _grid()
     dynamic = U > 1.0
     _shade(ax, U, KM, dynamic)
     ax.axvline(1.0, color="k", lw=2.2)
     # Emphasise that K_m plays no role here (this is the K_m -> inf limit).
-    ax.text(0.03, 0.97, r"$K_m\to\infty$ limit"
-            "\n" r"($A/V$ scaling)",
-            transform=ax.transAxes, ha="left", va="top", fontsize=9,
-            bbox=dict(boxstyle="round", fc="white", ec="gray", alpha=0.85))
-    ax.set_title(r"(d) Large-$K_m$ (concentration $A/V$) model:  $u=1$",
-                 fontsize=11)
+    #ax.text(0.03, 0.97, r"($A/V$ scaling)",
+     #       transform=ax.transAxes, ha="left", va="top", fontsize=9,
+     #       bbox=dict(boxstyle="round", fc="white", ec="gray", alpha=0.85))
+    ax.set_title(r"(d) Concentration-limited model:  $u=1$",
+                 fontsize=FS_TITLE)
 
 
 # ============================================================
@@ -160,16 +166,16 @@ def make_figure(outdir):
 
     legend_handles = [
         Patch(facecolor=C_BG, edgecolor="none",
-              label="BG optimal (constant allocation)"),
+              label="BG locally optimal"),
         Patch(facecolor=C_DYN, edgecolor="none",
-              label="time-dependent optimal (BG unstable)"),
-        Line2D([0], [0], color="k", lw=2.2, label="transition boundary"),
+              label="BG unstable"),
+        #Line2D([0], [0], color="k", lw=2.2, label="transition boundary"),
     ]
     fig.legend(handles=legend_handles, loc="lower center", ncol=3,
-               fontsize=10, bbox_to_anchor=(0.5, -0.02))
+               fontsize=FS_LEGEND, bbox_to_anchor=(0.5, -0.06))
 
     fig.suptitle("Balanced-growth phase transition across the models",
-                 fontsize=14, fontweight="bold")
+                 fontsize=FS_SUPTITLE, fontweight="bold")
 
     png = os.path.join(outdir, "phase_transition_summary.png")
     fig.savefig(png, dpi=150, bbox_inches="tight")

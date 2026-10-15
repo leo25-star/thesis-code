@@ -18,7 +18,7 @@ Here we draw the SAME 2x3 grid, but instead of the control we show the resulting
 over one cell cycle theta = t/tau in [0, 1], obtained by integrating
 
     dq/dtheta = P * phi(q,z) [ (1 - f(theta)) - f(theta) q ]
-    dz/dtheta = P * [ q - phi(q,z) ( u/v + f(theta) z ) ]
+    dz/dtheta = P * [ q - phi(q,z) ( v/u + f(theta) z ) ]
 
 with the optimal piecewise-constant f(theta) and the optimal period P found by
 `phase_transition_three_models.analyse_point`.
@@ -32,7 +32,7 @@ Each panel also shows the two nullclines of the frozen-control system evaluated
 at the BG allocation f = f*,
 
     dq/dtheta = 0   ->   q = (1 - f*)/f*      (vertical line)
-    dz/dtheta = 0   ->   q = phi(q,z) (u/v + f* z),
+    dz/dtheta = 0   ->   q = phi(q,z) (v/u + f* z),
 
 whose intersection is the BG point; they give the orbit a fixed reference frame.
 
@@ -50,15 +50,12 @@ import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
 from scipy.integrate import solve_ivp
 
 import phase_transition_three_models as pt3
 
-# colour of the orbit is the cycle phase theta; sequential, perceptually uniform
-PHASE_CMAP = "viridis"
+# single colour for the optimal orbit
+ORBIT_COLOR = "blue"
 
 
 # ============================================================
@@ -124,24 +121,20 @@ def _draw_nullclines(ax, model, P, f_star, qlim, zlim, ngrid=241):
                linestyles="-.", linewidths=0.9)
 
 
-def _draw_orbit(ax, theta, q, z, norm):
-    """Closed orbit as a line coloured by cycle phase, with flow arrows."""
-    pts = np.column_stack([q, z]).reshape(-1, 1, 2)
-    segs = np.concatenate([pts[:-1], pts[1:]], axis=1)
-    lc = LineCollection(segs, cmap=PHASE_CMAP, norm=norm, linewidths=2.0)
-    lc.set_array(0.5 * (theta[:-1] + theta[1:]))
-    ax.add_collection(lc)
+def _draw_orbit(ax, theta, q, z):
+    """Closed orbit as a single-colour line, with flow arrows."""
+    line, = ax.plot(q, z, color=ORBIT_COLOR, lw=2.2)
 
     # a few direction arrows along the orbit
     idx = np.linspace(0, len(q) - 2, 7).astype(int)[:-1]
     for i in idx:
         ax.annotate("", xy=(q[i + 1], z[i + 1]), xytext=(q[i], z[i]),
                     arrowprops=dict(arrowstyle="-|>", color="0.25",
-                                    lw=0.0, mutation_scale=11))
-    return lc
+                                    lw=0.0, mutation_scale=13))
+    return line
 
 
-def _panel(ax, model, rec, norm, show_ylabel=False):
+def _panel(ax, model, rec, show_ylabel=False):
     P, f_star = rec["Pvec"], rec["f"]
     q_bg, z_bg = rec["q_bg"], rec["z_bg"]
     theta, q, z = orbit_of_record(model, rec)
@@ -162,22 +155,18 @@ def _panel(ax, model, rec, norm, show_ylabel=False):
     qlim = (max(1e-6, qlo - padq), qhi + padq)
     zlim = (max(1e-6, zlo - padz), zhi + padz)
 
-    _draw_nullclines(ax, model, P, f_star, qlim, zlim)
-
     if closed and np.ptp(q) > 1e-9 * q_bg:
-        _draw_orbit(ax, theta, q, z, norm)
-        ax.plot(q[0], z[0], "o", ms=5.0, mfc="white", mec="C3", mew=1.4,
-                zorder=5, label=r"cycle start $\theta=0$")
-    ax.plot(q_bg, z_bg, "*", ms=11, color="k", zorder=6,
+        _draw_orbit(ax, theta, q, z)
+    ax.plot(q_bg, z_bg, "*", ms=14, color="k", zorder=6,
             label="BG fixed point")
 
     ax.set_xlim(*qlim)
     ax.set_ylim(*zlim)
     ax.grid(True, lw=0.4, color="0.9")
     ax.set_axisbelow(True)
-    ax.tick_params(labelsize=8)
+    ax.tick_params(labelsize=11)
     if show_ylabel:
-        ax.set_ylabel(r"$z=A/R$", fontsize=9)
+        ax.set_ylabel(r"$z$", fontsize=16)
 
     return amp
 
@@ -207,7 +196,6 @@ def fig_qz_space(model, cfg, P, star, records, outdir):
     row_label = ["before transition\n(BG optimal, $M>0$)",
                  "after transition\n(BG not optimal, $M<0$)"]
     sweep_sym = r"u" if key == "u" else r"K_m"
-    norm = Normalize(0.0, 1.0)
 
     for i in range(2):
         for j in range(3):
@@ -216,39 +204,27 @@ def fig_qz_space(model, cfg, P, star, records, outdir):
                 ax.axis("off")
                 continue
             r = rows[i][j]
-            amp = _panel(ax, model, r, norm, show_ylabel=(j == 0))
-            extra = ("BG point" if amp < 1e-6
-                     else rf"$\Delta q/q^*$={amp:.2f}")
-            ax.set_title(rf"${sweep_sym}$={r['sweep_val']:.3g},  {extra}",
-                         fontsize=9)
+            amp = _panel(ax, model, r, show_ylabel=(j == 0))
+            extra = ",  BG point" if amp < 1e-6 else ""
+            ax.set_title(rf"${sweep_sym}$={r['sweep_val']:.3g}{extra}",
+                         fontsize=14)
 
     for i in range(2):
         axes[i, 0].annotate(row_label[i], xy=(0, 0.5), xytext=(-0.52, 0.5),
                             xycoords="axes fraction", textcoords="axes fraction",
                             rotation=90, va="center", ha="center",
-                            fontsize=10, fontweight="bold")
+                            fontsize=13, fontweight="bold")
     for ax in axes[-1, :]:
-        ax.set_xlabel(r"$q=T/R$", fontsize=9)
-
-    sm = ScalarMappable(norm=norm, cmap=PHASE_CMAP)
-    cbar = fig.colorbar(sm, ax=axes, location="right", fraction=0.035, pad=0.01)
-    cbar.set_label(r"cycle phase $\theta=t/\tau$", fontsize=9)
-    cbar.ax.tick_params(labelsize=8)
+        ax.set_xlabel(r"$q$", fontsize=16)
 
     handles = [
-        plt.Line2D([], [], color=plt.get_cmap(PHASE_CMAP)(0.5), lw=2.0,
-                   label="optimal orbit"),
-        plt.Line2D([], [], marker="o", ls="none", mfc="white", mec="C3",
-                   mew=1.4, ms=5.0, label=r"cycle start $\theta=0$"),
-        plt.Line2D([], [], marker="*", ls="none", color="k", ms=11,
+        plt.Line2D([], [], color=ORBIT_COLOR, lw=2.2,
+                   label="optimal orbit found by SLSQP"),
+        plt.Line2D([], [], marker="*", ls="none", color="k", ms=14,
                    label="BG fixed point"),
-        plt.Line2D([], [], color="0.55", ls="--", lw=0.9,
-                   label=r"$\dot q=0$ at $f=f^*$"),
-        plt.Line2D([], [], color="0.55", ls="-.", lw=0.9,
-                   label=r"$\dot z=0$ at $f=f^*$"),
     ]
-    fig.legend(handles=handles, loc="lower center", ncol=5, fontsize=8.5,
-               bbox_to_anchor=(0.5, -0.04))
+    fig.legend(handles=handles, loc="lower center", ncol=2, fontsize=12,
+               bbox_to_anchor=(0.5, -0.06))
 
     if key == "u":
         trans = rf"transition at $u=1/\chi={star:.3g}$"
@@ -259,7 +235,7 @@ def fig_qz_space(model, cfg, P, star, records, outdir):
         trans = rf"transition at $K_m={star:.3g}$"
         fixed = rf"$v={P[pt3.IV]:g}$, $\chi={P[pt3.ICHI]:g}$, $u={P[pt3.IU]:g}$"
     fig.suptitle(f"{cfg['title']}:  optimal dynamics in the $(q,z)$ plane\n"
-                 f"({trans};  {fixed})", fontsize=12)
+                 f"({trans};  {fixed})", fontsize=17)
 
     png = os.path.join(outdir, f"qz_space_{cfg['tag']}.png")
     fig.savefig(png, dpi=150, bbox_inches="tight")

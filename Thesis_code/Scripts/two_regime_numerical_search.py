@@ -246,7 +246,7 @@ U_VALUES = [0.6, 1.0, 1.5, 2.5, 4.0, 6.0]     # sweep of k_T/k_R (=> 6 panels)
 
 def run_sweep():
     records = []
-    print(f"\n=== Two-regime model: numerical search  (k_A/k_C = {1/V:g}) ===")
+    print(f"\n=== Two-regime model: numerical search  (v = {V:g}) ===")
     for u in U_VALUES:
         qs, zs, fs, tau_bg = balanced_growth(u, V)
         top = global_optimum(u, V)
@@ -271,31 +271,31 @@ def make_figure(records, outdir):
         top = rec["top"]
 
         ax.plot(top["theta"], top["f"], color="C3", lw=2.4,
-                label="global optimum (SLSQP)")
+                label="optimal strategy found using SLSQP")
         ax.axhline(rec["fstar"], color="k", ls=":", lw=0.9,
-                   label="balanced growth $f^*$")
+                   label="optimal balanced growth $f_R^*$")
         ax.axhline(0.0, color="gray", ls=":", lw=0.5)
         ax.axhline(1.0, color="gray", ls=":", lw=0.5)
 
         ax.set_ylim(-0.08, 1.08)
         ax.set_xlim(0.0, 1.0)
-        ax.set_title(rf"$k_T/k_R$={rec['u']:.3g},  $f^*$={rec['fstar']:.3f},  "
+        ax.set_title(rf"$u$={rec['u']:.3g},  $f_R^*$={rec['fstar']:.3f},  "
                      rf"gain={rec['gain']:.2f}%", fontsize=9)
         ax.tick_params(labelsize=8)
 
     for ax in axes[-1, :]:
-        ax.set_xlabel(r"cycle phase $\theta = t/\tau$", fontsize=9)
+        ax.set_xlabel(r"$\theta$", fontsize=9)
     for ax in axes[:, 0]:
-        ax.set_ylabel(r"allocation $f(\theta)$", fontsize=9)
+        ax.set_ylabel(r"allocation $f_R(\theta)$", fontsize=9)
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=2, fontsize=9,
-               bbox_to_anchor=(0.5, -0.04))
+               bbox_to_anchor=(0.5, -0.08))
 
     fig.suptitle(
         "Two-regime model:  numerical optimum is balanced growth for all "
         "parameters\n"
-        rf"(no phase transition;  $k_A/k_C={1/V:g}$;  sweep of $k_T/k_R$)",
+        rf"(no phase transition;  $v={V:g}$;  sweep of $u$)",
         fontsize=12)
 
     png = os.path.join(outdir, "two_regime_numerical_search.png")

@@ -9,7 +9,7 @@ Working in the reduced (dimensionless) ratio system of Section 3.2, with
 q = T/R, z = A/R, u = k_T/k_R, v = k_C/k_A, control f = f_R:
 
     q' = phi(q,z) [ (1 - f) - f q ]
-    z' = q - phi(q,z) ( u/v + f z )
+    z' = q - phi(q,z) ( v/u + f z )
     (R'/R) = f phi(q,z)                    (=> doubling rate lambda = f phi)
 
 The three models differ only in the saturation factor phi (Sec. 3.4):
@@ -92,7 +92,7 @@ def F_fun(model, q, z, f, P):
 
 def G_fun(model, q, z, f, P):
     S, _, _ = phi_derivs(model, q, z, P)
-    return q - S * (P[IU] / P[IV] + f * z)
+    return q - S * (P[IV] / P[IU] + f * z)
 
 
 def lam_fun(model, q, z, f, P):
@@ -112,7 +112,7 @@ def first_order_coeffs(model, q, z, P):
     B = 1.0 + q
     f = 1.0 / B
     C = f                                    # so that S*C = phi* f*
-    V0 = u / v + f * z
+    V0 = v / u + f * z
     m = z / B
 
     a = 1.0 - V0 * Sq + z * S * f / B
@@ -319,7 +319,7 @@ def ray_optimum(model, pt, P, n):
 def _dyn_jac(model, q, z, f, P):
     """Dynamics g=[F,G,lam] plus analytic Jacobians dg/d(q,z,logR) and dg/df."""
     S, Sq, Sz = phi_derivs(model, q, z, P)
-    uv = P[IU] / P[IV]
+    uv = P[IV] / P[IU]
 
     PF = (1.0 - f) - f * q
     F = S * PF
@@ -382,6 +382,149 @@ def _rk4_step_jac(model, Y, f, Pd, dth, P):
     return Y_next, Phi, bb, cc
 
 
+# ------------------------------------------------------------
+# Compiled (numba) version of the shooting constraint + Jacobian.
+# Same math as _dyn_jac / _rk4_step_jac / con_jac_full, written with
+# scalar loops so numba can compile it.  This is >95% of the run time.
+# Falls back to the pure-Python version if numba is not installed.
+# ------------------------------------------------------------
+
+MODEL_ID = {"MM": 0, "modMM": 1, "conc": 2}
+
+try:
+    from numba import njit
+except ImportError:
+    njit = None
+
+if njit is not None:
+
+    @njit(cache=True)
+    def _dyn_jac_nb(mid, q, z, f, uv, xu, Km, delta, g, A, gf):
+        if mid == 2:                                  # conc
+            D = 1.0 + xu * q
+            S = z / D
+            Sq = -z * xu / (D * D)
+            Sz = 1.0 / D
+        else:                                         # MM / modMM
+            C = Km * (1.0 + xu * q)
+            if mid == 1:
+                C += delta
+            D = z + C
+            S = z / D
+            Sq = -z * Km * xu / (D * D)
+            Sz = C / (D * D)
+
+        PF = (1.0 - f) - f * q
+        PG = uv + f * z
+        g[0] = S * PF
+        g[1] = q - S * PG
+        g[2] = f * S
+        A[0, 0] = Sq * PF - S * f
+        A[0, 1] = Sz * PF
+        A[1, 0] = 1.0 - Sq * PG
+        A[1, 1] = -Sz * PG - S * f
+        A[2, 0] = f * Sq
+        A[2, 1] = f * Sz
+        A[0, 2] = 0.0
+        A[1, 2] = 0.0
+        A[2, 2] = 0.0
+        gf[0] = -S * (1.0 + q)
+        gf[1] = -S * z
+        gf[2] = S
+
+    @njit(cache=True)
+    def _con_jac_nb(mid, f, m, q0, z0, Pd, uv, xu, Km, delta):
+        K = f.shape[0]
+        nstep = K * m
+        dth = 1.0 / nstep
+        h6 = dth / 6.0
+        stage_c = (0.0, 0.5 * dth, 0.5 * dth, dth)
+        stage_w = (1.0, 2.0, 2.0, 1.0)
+
+        Phis = np.empty((nstep, 3, 3))
+        bs = np.empty((nstep, 3))
+        cs = np.empty((nstep, 3))
+
+        Y = np.array([q0, z0, 0.0])
+        Ys = np.empty(3)
+        g = np.empty(3)
+        A = np.empty((3, 3))
+        gf = np.empty(3)
+        k = np.zeros((4, 3))
+        dkY = np.zeros((4, 3, 3))
+        dkf = np.zeros((4, 3))
+        dkP = np.zeros((4, 3))
+
+        # ---- forward sweep: RK4 states + per-step sensitivities ----
+        for s in range(nstep):
+            fs = f[s // m]
+            for st in range(4):
+                c = stage_c[st]
+                for i in range(3):
+                    Ys[i] = Y[i] + (c * k[st - 1, i] if st > 0 else 0.0)
+                _dyn_jac_nb(mid, Ys[0], Ys[1], fs, uv, xu, Km, delta, g, A, gf)
+                for i in range(3):
+                    k[st, i] = Pd * g[i]
+                    af = Pd * gf[i]
+                    ap = g[i]
+                    for j in range(3):
+                        dkY[st, i, j] = Pd * A[i, j]
+                    if st > 0:
+                        for l in range(3):
+                            w = Pd * A[i, l] * c
+                            af += w * dkf[st - 1, l]
+                            ap += w * dkP[st - 1, l]
+                            for j in range(3):
+                                dkY[st, i, j] += w * dkY[st - 1, l, j]
+                    dkf[st, i] = af
+                    dkP[st, i] = ap
+            for i in range(3):
+                yi = 0.0
+                bi = 0.0
+                ci = 0.0
+                for st in range(4):
+                    yi += stage_w[st] * k[st, i]
+                    bi += stage_w[st] * dkf[st, i]
+                    ci += stage_w[st] * dkP[st, i]
+                Y[i] += h6 * yi
+                bs[s, i] = h6 * bi
+                cs[s, i] = h6 * ci
+                for j in range(3):
+                    pij = 0.0
+                    for st in range(4):
+                        pij += stage_w[st] * dkY[st, i, j]
+                    Phis[s, i, j] = (1.0 if i == j else 0.0) + h6 * pij
+
+        cvec = np.array([Y[0] - q0, Y[1] - z0, Y[2] - np.log(2.0)])
+
+        # ---- backward sweep: chain the step sensitivities ----
+        T = np.eye(3)
+        Tn = np.empty((3, 3))
+        df_col = np.zeros((3, K))
+        dP = np.zeros(3)
+        for s in range(nstep - 1, -1, -1):
+            col = s // m
+            for i in range(3):
+                for l in range(3):
+                    df_col[i, col] += T[i, l] * bs[s, l]
+                    dP[i] += T[i, l] * cs[s, l]
+            for i in range(3):
+                for j in range(3):
+                    acc = 0.0
+                    for l in range(3):
+                        acc += T[i, l] * Phis[s, l, j]
+                    Tn[i, j] = acc
+            T[:, :] = Tn
+
+        Jx = np.zeros((3, K + 3))
+        Jx[:, :K] = df_col
+        for i in range(3):
+            Jx[i, K] = (T[i, 0] - (1.0 if i == 0 else 0.0)) * q0
+            Jx[i, K + 1] = (T[i, 1] - (1.0 if i == 1 else 0.0)) * z0
+            Jx[i, K + 2] = dP[i] * Pd
+        return cvec, Jx
+
+
 def _solve_ocp(model, x0, bounds, K, P, m):
     I3 = np.eye(3)
     e0 = np.array([1.0, 0.0, 0.0])
@@ -395,6 +538,10 @@ def _solve_ocp(model, x0, bounds, K, P, m):
 
     def con_jac_full(x):
         f, q0_, z0_, Pd = unpack(x)
+        if njit is not None:
+            return _con_jac_nb(MODEL_ID[model], np.ascontiguousarray(f), m,
+                               q0_, z0_, Pd, P[IV] / P[IU], P[ICHI] * P[IU],
+                               P[IKM], P[IDEL])
         Phis = np.empty((nstep, 3, 3))
         bs = np.empty((nstep, 3))
         cs = np.empty((nstep, 3))
@@ -569,7 +716,7 @@ def find_transition(model, P, key, lo, hi, n_coarse=40):
 
 
 # multiplicative offsets from the transition value: 3 before, 3 after
-MULTS = np.array([0.55, 0.72, 0.88, 1.13, 1.4, 1.9])
+MULTS = np.array([0.55, 0.72, 0.88, 1.9, 2.5, 2.9])
 
 
 def build_sweep(model, P, key, star, K=80, verbose=True):
@@ -666,28 +813,29 @@ def fig_strategies(model, cfg, P, star, records, outdir):
             th = r["theta"]
             ax.plot(th, r["dir_f"], color="C0", ls="--", lw=1.3,
                     label="declining direction")
-            ax.plot(th, r["f_opt"], color="C3", lw=2.2, label="global optimum")
-            ax.axhline(r["f"], color="k", ls=":", lw=0.8)
+            ax.plot(th, r["f_opt"], color="C3", lw=2.2, label="optimum found by SLSQP")
+            ax.axhline(r["f"], color="k", ls=":", lw=1.2,
+                       label=r"optimal BG strategy $f^*_R$")
             ax.axhline(0.0, color="gray", ls=":", lw=0.5)
             ax.axhline(1.0, color="gray", ls=":", lw=0.5)
             ax.set_ylim(-0.08, 1.08)
             ax.set_title(rf"${sweep_sym}$={r['sweep_val']:.3g},  "
-                         rf"gain={r['gain']:.2f}%", fontsize=12)
-            ax.tick_params(labelsize=8)
+                         rf"gain={r['gain']:.2f}%", fontsize=14)
+            ax.tick_params(labelsize=11)
 
     for i in range(2):
         axes[i, 0].annotate(row_label[i], xy=(0, 0.5), xytext=(-0.52, 0.5),
                             xycoords="axes fraction", textcoords="axes fraction",
                             rotation=90, va="center", ha="center",
-                            fontsize=10, fontweight="bold")
+                            fontsize=13, fontweight="bold")
     for ax in axes[-1, :]:
-        ax.set_xlabel(r"cycle phase $\theta=t/\tau$", fontsize=12)
+        ax.set_xlabel(r"$\theta$", fontsize=15)
     for ax in axes[:, 0]:
-        ax.set_ylabel(r"allocation $f_R(\theta)$", fontsize=12)
+        ax.set_ylabel(r"allocation $f_R(\theta)$", fontsize=14)
 
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=2, fontsize=9,
-               bbox_to_anchor=(0.5, -0.04))
+    handles, labels = axes[-1, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=12,
+               bbox_to_anchor=(0.5, -0.06))
 
     kA_kC = 1.0 / P[IV]
     if key == "u":
@@ -699,7 +847,7 @@ def fig_strategies(model, cfg, P, star, records, outdir):
         trans = rf"transition at $K_m={star:.3g}$"
         fixed = rf"$v={1/kA_kC:g}$, $\chi={P[ICHI]:g}$, $u={P[IU]:g}$"
     fig.suptitle(f"{cfg['title']}:  optimal strategy across the phase transition\n"
-                 f"({trans};  {fixed})", fontsize=15)
+                 f"({trans};  {fixed})", fontsize=17)
 
     png = os.path.join(outdir, f"phase_transition_{cfg['tag']}.png")
     fig.savefig(png, dpi=150, bbox_inches="tight")

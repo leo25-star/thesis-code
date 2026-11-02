@@ -584,7 +584,7 @@ def _solve_ocp(model, x0, bounds, K, P, m):
         constraints=[{"type": "eq",
                       "fun": lambda x: ensure(x)["c"],
                       "jac": lambda x: ensure(x)["J"]}],
-        options={"maxiter": 300, "ftol": 1e-11},
+        options={"maxiter": 2000, "ftol": 1e-11},
     )
     f, q0_, z0_, Pd = unpack(res.x)
     resid = float(np.max(np.abs(ensure(res.x)["c"])))
@@ -719,7 +719,7 @@ def find_transition(model, P, key, lo, hi, n_coarse=40):
 MULTS = np.array([0.55, 0.72, 0.88, 1.9, 2.5, 2.9])
 
 
-def build_sweep(model, P, key, star, K=80, verbose=True):
+def build_sweep(model, P, key, star, K=120, verbose=True):
     records, guess, warm = [], (1.0, 1.0), None
     for val in star * MULTS:
         pt = mn_at(model, P, key, val, guess)
@@ -738,7 +738,7 @@ def build_sweep(model, P, key, star, K=80, verbose=True):
         rec = analyse_point(model, Pv, pt, n, key, val, K=K_pt, warm=warm)
         warm = rec["warm"]
         if verbose:
-            print(f"  ->  P_true={rec['P_true']:.4f}  gain={rec['gain']:.2f}%  "
+            print(f"  ->  P_true={rec['P_true']:.4f}  gain={rec['gain']:.3e}%  "
                   f"switches={rec['switches']}")
         records.append(rec)
     return records
@@ -788,6 +788,17 @@ def analyse_point(model, P, pt, n, key, val, K=80, warm=None):
 # 7. Plot: 2x3 grid of optimal strategies (before / after)
 # ============================================================
 
+def fmt_gain(g):
+    """Gain in % for plot titles; scientific notation when |g| < 0.01 so small
+    (but nonzero) gains don't print as 0.00%."""
+    if not np.isfinite(g) or g == 0.0:
+        return "0%"
+    if abs(g) >= 0.01:
+        return f"{g:.2f}%"
+    mant, exp = f"{g:.2e}".split("e")
+    return rf"${mant}\times10^{{{int(exp)}}}$%"
+
+
 def fig_strategies(model, cfg, P, star, records, outdir):
     key = cfg["sweep"]
     recs = sorted(records, key=lambda r: r["M"], reverse=True)
@@ -820,7 +831,7 @@ def fig_strategies(model, cfg, P, star, records, outdir):
             ax.axhline(1.0, color="gray", ls=":", lw=0.5)
             ax.set_ylim(-0.08, 1.08)
             ax.set_title(rf"${sweep_sym}$={r['sweep_val']:.3g},  "
-                         rf"gain={r['gain']:.2f}%", fontsize=14)
+                         f"gain={fmt_gain(r['gain'])}", fontsize=14)
             ax.tick_params(labelsize=11)
 
     for i in range(2):

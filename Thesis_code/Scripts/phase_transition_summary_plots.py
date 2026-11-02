@@ -39,7 +39,9 @@ The four models and their boundaries
         rho(q,z) = z / (1 + chi q).    
                 u = 1        (k_T = k_R).
 
-Output: ``phase_transition_summary.png`` (written to ../PNGs/).
+Output (written to ../PNGs/):
+  ``phase_transition_summary.png``        models (a), (c), (d)  -- thesis body
+  ``phase_transition_summary_modMM.png``  model (b)             -- appendix
 """
 
 import os
@@ -74,7 +76,7 @@ FS_ANNOT = 16        # in-panel annotations
 
 
 def _grid(n_u=400, n_km=400):
-    """(u, K_m) mesh; K_m logarithmic."""
+    """(chi u, K_m) mesh; K_m logarithmic.  The x-axis is chi*u throughout."""
     u = np.linspace(U_MIN, U_MAX, n_u)
     km = np.logspace(np.log10(KM_MIN), np.log10(KM_MAX), n_km)
     return np.meshgrid(u, km)          # U, KM
@@ -87,7 +89,7 @@ def _shade(ax, U, KM, dynamic):
     ax.set_yscale("log")
     ax.set_xlim(U_MIN, U_MAX)
     ax.set_ylim(KM_MIN, KM_MAX)
-    ax.set_xlabel(r"$u$", fontsize=FS_LABEL)
+    ax.set_xlabel(r"$\chi u$", fontsize=FS_LABEL)
     ax.set_ylabel(r"$K_m$", fontsize=FS_LABEL)
     ax.tick_params(axis="both", which="major", labelsize=FS_TICK)
 
@@ -96,50 +98,50 @@ def _shade(ax, U, KM, dynamic):
 # One panel per model
 # ============================================================
 
-def panel_step(ax):
-    """(a) Two-regime step-function model: BG optimal everywhere."""
+def panel_step(ax, label="(a)"):
+    """Two-regime step-function model: BG globally optimal everywhere."""
     U, KM = _grid()
     dynamic = np.zeros_like(U, dtype=bool)          # never time-dependent
     _shade(ax, U, KM, dynamic)
     ax.text(0.5, 0.5, "BG optimal\neverywhere\n(no transition)",
             transform=ax.transAxes, ha="center", va="center",
             fontsize=FS_ANNOT + 2, fontweight="bold", color="#08519c")
-    ax.set_title("(a) Two-regime model", fontsize=FS_TITLE)
+    ax.set_title(f"{label} Two-regime model", fontsize=FS_TITLE)
 
 
-def panel_mm_R(ax):
-    """(b) Modified MM: K_m = 1/(chi u - 1)."""
+def panel_mm_R(ax, label=""):
+    """Modified MM: K_m = 1/(chi u - 1)."""
     U, KM = _grid()
-    # M_chi > 0  <=>  K_m (chi u - 1) < 1  ->  BG optimal.
-    dynamic = KM * (CHI * U - 1.0) > 1.0
+    # M_chi > 0  <=>  K_m (chi u - 1) < 1  ->  BG optimal.  (U here is chi*u.)
+    dynamic = KM * (U - 1.0) > 1.0
     _shade(ax, U, KM, dynamic)
 
     # Transition curve K_m = 1/(chi u - 1), drawn only where chi u > 1.
-    u_line = np.linspace(1.0 / CHI + 1e-3, U_MAX, 400)
-    km_line = 1.0 / (CHI * u_line - 1.0)
+    u_line = np.linspace(1.0 + 1e-3, U_MAX, 400)
+    km_line = 1.0 / (u_line - 1.0)
     inwin = (km_line >= KM_MIN) & (km_line <= KM_MAX)
     ax.plot(u_line[inwin], km_line[inwin], "k-", lw=2.2)
-    # Vertical asymptote u = 1/chi (the K_m -> inf limit of this boundary).
-    ax.axvline(1.0 / CHI, color="k", ls=":", lw=1.2)
-    ax.text(1.0 / CHI, KM_MAX * 0.55, r"$u=1/\chi$", rotation=90,
+    # Vertical asymptote chi u = 1 (the K_m -> inf limit of this boundary).
+    ax.axvline(1.0, color="k", ls=":", lw=1.2)
+    ax.text(1.0, KM_MAX * 0.55, r"$\chi u=1$", rotation=90,
             ha="right", va="top", fontsize=FS_ANNOT - 2)
 
-    ax.set_title(r"(b) Modified MM:  "
-                 r"$K_m=\dfrac{1}{\chi u-1}$" + f"",
-                 fontsize=FS_TITLE)
+    ax.set_title(f"{label} Modified MM:  ".lstrip()
+                 + r"$K_m=\dfrac{1}{\chi u-1}$",
+                 fontsize=FS_TITLE, pad=12)
 
 
-def panel_mm_classic(ax):
-    """(c) MM model: u = 1."""
+def panel_mm_classic(ax, label="(b)"):
+    """MM model: u = 1."""
     U, KM = _grid()
     dynamic = U > 1.0
     _shade(ax, U, KM, dynamic)
     ax.axvline(1.0, color="k", lw=2.2)
-    ax.set_title(r"(c) MM model:  $u=1$", fontsize=FS_TITLE)
+    ax.set_title(f"{label} MM model:  " + r"$\chi u=1$", fontsize=FS_TITLE)
 
 
-def panel_large_km(ax):
-    """(d) Concentration-limited (A/V scaling) model: u = 1."""
+def panel_large_km(ax, label="(c)"):
+    """Concentration-limited (A/V scaling) model: u = 1."""
     U, KM = _grid()
     dynamic = U > 1.0
     _shade(ax, U, KM, dynamic)
@@ -148,7 +150,7 @@ def panel_large_km(ax):
     #ax.text(0.03, 0.97, r"($A/V$ scaling)",
      #       transform=ax.transAxes, ha="left", va="top", fontsize=9,
      #       bbox=dict(boxstyle="round", fc="white", ec="gray", alpha=0.85))
-    ax.set_title(r"(d) Concentration-limited model:  $u=1$",
+    ax.set_title(f"{label} Concentration-limited model:\n" + r"$\chi u=1$",
                  fontsize=FS_TITLE)
 
 
@@ -156,14 +158,7 @@ def panel_large_km(ax):
 # Figure
 # ============================================================
 
-def make_figure(outdir):
-    fig, axes = plt.subplots(2, 2, figsize=(12.5, 9.5),
-                             constrained_layout=True)
-    panel_step(axes[0, 0])
-    panel_mm_R(axes[0, 1])
-    panel_mm_classic(axes[1, 0])
-    panel_large_km(axes[1, 1])
-
+def _legend(fig, y):
     legend_handles = [
         Patch(facecolor=C_BG, edgecolor="none",
               label="BG locally optimal"),
@@ -172,12 +167,37 @@ def make_figure(outdir):
         #Line2D([0], [0], color="k", lw=2.2, label="transition boundary"),
     ]
     fig.legend(handles=legend_handles, loc="lower center", ncol=3,
-               fontsize=FS_LEGEND, bbox_to_anchor=(0.5, -0.06))
+               fontsize=FS_LEGEND, bbox_to_anchor=(0.5, y))
+
+
+def make_figure(outdir):
+    """Thesis body: two-regime, MM and concentration-limited models."""
+    fig, axes = plt.subplots(1, 3, figsize=(18.5, 6.0),
+                             constrained_layout=True)
+    panel_step(axes[0], "(a)")
+    panel_mm_classic(axes[1], "(b)")
+    panel_large_km(axes[2], "(c)")
+    _legend(fig, -0.12)
 
     fig.suptitle("Balanced-growth phase transition across the models",
                  fontsize=FS_SUPTITLE, fontweight="bold")
 
     png = os.path.join(outdir, "phase_transition_summary.png")
+    fig.savefig(png, dpi=150, bbox_inches="tight")
+    print(f"Saved figure to: {png}")
+    return fig
+
+
+def make_figure_modMM(outdir):
+    """Appendix: the modified MM model on its own."""
+    fig, ax = plt.subplots(figsize=(7.0, 6.0), constrained_layout=True)
+    panel_mm_R(ax)
+    _legend(fig, -0.14)
+
+    fig.suptitle("Balanced-growth phase transition, modified MM model",
+                 fontsize=FS_SUPTITLE, fontweight="bold")
+
+    png = os.path.join(outdir, "phase_transition_summary_modMM.png")
     fig.savefig(png, dpi=150, bbox_inches="tight")
     print(f"Saved figure to: {png}")
     return fig
@@ -190,6 +210,7 @@ def main():
     )
     os.makedirs(outdir, exist_ok=True)
     make_figure(outdir)
+    make_figure_modMM(outdir)
     plt.show()
 
 

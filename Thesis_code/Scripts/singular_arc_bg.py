@@ -307,22 +307,34 @@ def run_model(p, ax):
     return roots
 
 
-if __name__ == "__main__":
-    fig, axes = plt.subplots(1, len(MODELS), figsize=(5.5 * len(MODELS), 6.0))
-    for prm, ax in zip(MODELS, axes):
-        run_model(prm, ax)
-    for ax in axes[1:]:
-        ax.set_ylabel("")       # y label only on the leftmost panel
-    fig.suptitle(r"Constraint on $f_R^{BG}$")
-    fig.tight_layout()
+# The modified MM model is in the thesis appendix, so it gets its own figure.
+FIGURES = {
+    "singular_arc_bg.png": [p for p in MODELS if p["kind"] != "modMM"],
+    "singular_arc_bg_modMM.png": [p for p in MODELS if p["kind"] == "modMM"],
+}
 
+
+if __name__ == "__main__":
     # Figures are written to Thesis_code/PNGs (one level up from Scripts/)
     outdir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "PNGs"
     )
     os.makedirs(outdir, exist_ok=True)
-    png = os.path.join(outdir, "singular_arc_bg.png")
-    fig.savefig(png, dpi=300, bbox_inches="tight")
-    print(f"saved {png}")
+
+    for fname, models in FIGURES.items():
+        fig, axes = plt.subplots(1, len(models),
+                                 figsize=(max(5.5 * len(models), 8.0), 6.0),
+                                 squeeze=False)
+        axes = axes[0]
+        for prm, ax in zip(models, axes):
+            run_model(prm, ax)
+        for ax in axes[1:]:
+            ax.set_ylabel("")       # y label only on the leftmost panel
+        fig.suptitle(r"Constraint on $f_R^{BG}$")
+        fig.tight_layout()
+
+        png = os.path.join(outdir, fname)
+        fig.savefig(png, dpi=300, bbox_inches="tight")
+        print(f"saved {png}")
 
     plt.show()
